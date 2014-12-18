@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2014 Snowplow Analytics Ltd. All rights reserved.
+ *
+ * This program is licensed to you under the Apache License Version 2.0,
+ * and you may not use this file except in compliance with the Apache License Version 2.0.
+ * You may obtain a copy of the Apache License Version 2.0 at http://www.apache.org/licenses/LICENSE-2.0.
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the Apache License Version 2.0 is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
+ */
+package com.snowplowanalytics.snowplow
+package storage.kinesiss3
+
+// Java
+import java.util.Properties
+import java.io.{
+  FileInputStream,
+  FileOutputStream,
+  BufferedInputStream
+}
+
+// AWS libs
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
+
+// AWS Kinesis Connector libs
+import com.amazonaws.services.kinesis.connectors.{
+  KinesisConnectorConfiguration,
+  UnmodifiableBuffer
+}
+import com.amazonaws.services.kinesis.connectors.impl.BasicMemoryBuffer
+
+// Elephant Bird
+import com.twitter.elephantbird.mapreduce.io.ThriftBlockReader
+import com.twitter.elephantbird.util.TypeRef
+
+// Scala
+import scala.sys.process._
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
+// Snowplow
+import collectors.thrift.SnowplowRawEvent
+
+// This project
+import sinks._
+
+// Specs2
+import org.specs2.mutable.Specification
+import org.specs2.scalaz.ValidationMatchers
+
+/**
+ * Tests serialization and LZO compression of SnowplowRawEvents
+ */
+class LzoSerializerSpec extends Specification with ValidationMatchers {
+
+  "The LzoSerializer" should {
+    "correctly serialize and compress a list of SnowplowRawEvents" in {
+
+      val inputEvents = List(new SnowplowRawEvent(1000, "a", "b", "c"), new SnowplowRawEvent(2000, "x", "y", "z"))
+
+      val lzoOutput = LzoSerializer.serialize(inputEvents)._1
+
+      val decompressedFilename = "/tmp/kinesis-s3-sink-test"
+
+      val compressedFilename = decompressedFilename + ".lzo"
+
+      lzoOutput.writeTo(new FileOutputStream(compressedFilename))
+
+      s"lzop -d $compressedFilename" !!
+
+      val input = new BufferedInputStream(new FileInputStream(decompressedFilename))
+      val typeRef = new TypeRef[SnowplowRawEvent](){}
+      val reader = new ThriftBlockReader[SnowplowRawEvent](input, typeRef)      
+
+      reader.readNext must_== inputEvents(0)
+      reader.readNext must_== inputEvents(1)
+    }
+  }
+}
