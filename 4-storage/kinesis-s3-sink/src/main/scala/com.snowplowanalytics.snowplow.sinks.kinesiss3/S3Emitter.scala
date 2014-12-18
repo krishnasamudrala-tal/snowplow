@@ -62,7 +62,7 @@ class S3Emitter(config: KinesisConnectorConfiguration) extends IEmitter[ Snowplo
    * Determines the filename in S3, which is the corresponding
    * Kinesis sequence range of records in the file.
    */
-  protected def getFileName(firstSeq: String, lastSeq: String): String = {
+  protected def getFileName(firstSeq: String, lastSeq: String, lzoCodec: LzopCodec): String = {
     dateFormat.format(Calendar.getInstance().getTime()) +
       "-" + firstSeq + "-" + lastSeq + lzoCodec.getDefaultExtension()
   }
@@ -80,33 +80,14 @@ class S3Emitter(config: KinesisConnectorConfiguration) extends IEmitter[ Snowplo
 
     val records = buffer.getRecords().asScala
 
-    val indexOutputStream = new ByteArrayOutputStream()
-    val outputStream = new ByteArrayOutputStream()
+    val (outputStream, indexOutputStream, lzoCodec) = LzoSerializer.serialize(records.toList)
 
-    // This writes to the underlying outputstream and indexoutput stream
-    val lzoOutputStream = lzoCodec.createIndexedOutputStream(outputStream, new DataOutputStream(indexOutputStream))
-
-    // This writes to the underlying lzo stream
-    val thriftBlockWriter = new ThriftBlockWriter[SnowplowRawEvent](lzoOutputStream, classOf[SnowplowRawEvent], buffer.getRecords().size)
-
-    // Popular the output stream with records
-    records.foreach({ record =>
-      try {
-        thriftBlockWriter.write(record)
-      } catch {
-        case e: IOException => {
-          log.error(e)
-          buffer.getRecords
-        }
-      }
-    })
-
-    thriftBlockWriter.close
-
-    val filename = getFileName(buffer.getFirstSequenceNumber, buffer.getLastSequenceNumber)
+    val filename = getFileName(buffer.getFirstSequenceNumber, buffer.getLastSequenceNumber, lzoCodec)
     val indexFilename = filename + ".index"
+
     val obj = new ByteArrayInputStream(outputStream.toByteArray)
     val indexObj = new ByteArrayInputStream(indexOutputStream.toByteArray)
+
     val objMeta = new ObjectMetadata()
     val indexObjMeta = new ObjectMetadata()
 
@@ -141,4 +122,3 @@ class S3Emitter(config: KinesisConnectorConfiguration) extends IEmitter[ Snowplo
   }
 
 }
-
