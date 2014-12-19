@@ -24,7 +24,13 @@ libraryDependencies += "com.typesafe"               % "config"                  
 
 libraryDependencies += "org.slf4j"                  % "slf4j-simple"                % "1.7.6"
 
-libraryDependencies += "com.twitter.elephantbird"   % "elephant-bird-core"          % "3.0.6"
+libraryDependencies += "org.apache.hadoop"          %  "hadoop-core"                % "1.2.1"
+
+libraryDependencies += "com.twitter.elephantbird"   % "elephant-bird-core"          % "4.5"
+
+libraryDependencies += "org.specs2"                %% "specs2"                      % "1.14" % "test"
+
+libraryDependencies += "org.typelevel"             %% "scalaz-specs2"               % "0.1.2" % "test"
 
 assemblySettings
 
@@ -38,7 +44,8 @@ excludedJars in assembly <<= (fullClasspath in assembly) map { cp =>
     "jasper-compiler-5.5.12.jar",
     "jsp-api-2.1-6.1.14.jar",
     "servlet-api-2.5-6.1.14.jar",
-    "hadoop-lzo-0.4.16.jar"
+    "hadoop-lzo-0.4.16.jar",
+    "commons-beanutils-1.7.0.jar"
   )
   cp filter { jar => excludes(jar.data.getName) }
 }
