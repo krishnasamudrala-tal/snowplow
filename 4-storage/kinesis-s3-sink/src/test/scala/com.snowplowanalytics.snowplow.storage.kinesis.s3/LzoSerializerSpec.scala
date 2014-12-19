@@ -16,6 +16,7 @@ package storage.kinesiss3
 // Java
 import java.util.Properties
 import java.io.{
+  File,
   FileInputStream,
   FileOutputStream,
   BufferedInputStream
@@ -58,13 +59,17 @@ class LzoSerializerSpec extends Specification with ValidationMatchers {
   "The LzoSerializer" should {
     "correctly serialize and compress a list of SnowplowRawEvents" in {
 
-      val inputEvents = List(new SnowplowRawEvent(1000, "a", "b", "c"), new SnowplowRawEvent(2000, "x", "y", "z"))
-
-      val lzoOutput = LzoSerializer.serialize(inputEvents)._1
-
       val decompressedFilename = "/tmp/kinesis-s3-sink-test"
 
       val compressedFilename = decompressedFilename + ".lzo"
+
+      def cleanup() = List(compressedFilename, decompressedFilename).foreach(new File(_).delete())
+
+      cleanup()
+
+      val inputEvents = List(new SnowplowRawEvent(1000, "a", "b", "c"), new SnowplowRawEvent(2000, "x", "y", "z"))
+
+      val lzoOutput = LzoSerializer.serialize(inputEvents)._1
 
       lzoOutput.writeTo(new FileOutputStream(compressedFilename))
 
@@ -74,8 +79,10 @@ class LzoSerializerSpec extends Specification with ValidationMatchers {
       val typeRef = new TypeRef[SnowplowRawEvent](){}
       val reader = new ThriftBlockReader[SnowplowRawEvent](input, typeRef)      
 
-      reader.readNext must_== inputEvents(0)
-      reader.readNext must_== inputEvents(1)
+      cleanup()
+
+      reader.readNext() must_== inputEvents(0)
+      reader.readNext() must_== inputEvents(1)
     }
   }
 }
